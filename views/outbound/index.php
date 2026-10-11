@@ -6,7 +6,7 @@ $cu = Auth::instance();
 <div class="page-head">
   <h2>出库管理</h2>
   <div class="actions">
-    <?php if ($canCreate): ?><button class="btn btn-primary" id="btnAdd">＋ 新增出库单</button><?php endif; ?>
+    <?php if ($canCreate): ?><button class="btn btn-primary" id="btnAdd"><?= icon('plus') ?> 新增出库单</button><?php endif; ?>
   </div>
 </div>
 
@@ -130,7 +130,7 @@ $totalPages = $page['totalPages']; $cur = $page['page']; $total = $page['total']
               <tbody id="itemsBody"></tbody>
             </table>
           </div>
-          <div style="margin-top:8px"><button type="button" class="btn btn-sm" onclick="addItem()">＋ 添加一行</button></div>
+          <div style="margin-top:8px"><button type="button" class="btn btn-sm" onclick="addItem()"><?= icon('plus') ?> 添加一行</button></div>
           <div class="totals">合计：<span class="total-amount" id="grandTotal">¥0.00</span></div>
         </div>
 
@@ -247,7 +247,7 @@ function addItem(pid, qty, price, remark){
     '<td class="it-amount">0.00</td>'+
     '<td class="it-stock">-</td>'+
     '<td><input type="text" class="it-remark" value="'+e2(remark||'')+'"></td>'+
-    '<td class="col-del"><button type="button" onclick="removeRow(this)">✕</button></td>';
+    '<td class="col-del"><button type="button" onclick="removeRow(this)" title="删除"><?= icon('x') ?></button></td>';
   document.getElementById('itemsBody').appendChild(tr);
   recalcRow(tr.querySelector('.it-qty'));
   if (pid) onProductChange(tr.querySelector('.it-product'), true);

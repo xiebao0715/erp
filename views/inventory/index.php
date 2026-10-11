@@ -10,8 +10,8 @@ $tab = $tab ?? 'list';
 
 <!-- 标签切换 -->
 <div style="margin-bottom:14px;display:flex;gap:6px">
-  <a class="btn <?= $tab==='list'?'btn-primary':'' ?>" href="<?= url('inventory/index') ?>">📦 库存查询</a>
-  <a class="btn <?= $tab==='warning'?'btn-danger':'' ?>" href="<?= url('inventory/warning') ?>">⚠ 库存预警</a>
+  <a class="btn <?= $tab==='list'?'btn-primary':'' ?>" href="<?= url('inventory/index') ?>"><?= icon('package') ?> 库存查询</a>
+  <a class="btn <?= $tab==='warning'?'btn-danger':'' ?>" href="<?= url('inventory/warning') ?>"><?= icon('alert-triangle') ?> 库存预警</a>
   <?php if ($tab==='warning' && !empty($globalThreshold)): ?>
     <span style="align-self:center;color:#888;font-size:13px;margin-left:10px">当前阈值：库存 &lt; <?= e($globalThreshold) ?></span>
   <?php elseif ($tab==='warning'): ?>

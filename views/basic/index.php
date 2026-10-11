@@ -10,7 +10,7 @@ use Core\Csrf;
 <div class="page-head">
   <h2>基础设置</h2>
   <div class="actions">
-    <a class="btn" href="<?= url('product/index') ?>">📦 返回商品管理</a>
+    <a class="btn" href="<?= url('product/index') ?>"><?= icon('package') ?> 返回商品管理</a>
   </div>
 </div>
 
@@ -18,7 +18,7 @@ use Core\Csrf;
 
   <!-- ============ 商品分类 ============ -->
   <div class="basic-card">
-    <div class="basic-card-head"><h3>🗂 商品分类</h3><span class="basic-tip">用于商品归类、入库/出库/库存分类筛选</span></div>
+    <div class="basic-card-head"><h3><?= icon('folder') ?> 商品分类</h3><span class="basic-tip">用于商品归类、入库/出库/库存分类筛选</span></div>
 
     <?php if ($canCreate || $canEdit): ?>
     <form class="basic-form" id="catForm" onsubmit="return saveItem('cat')">
@@ -26,7 +26,7 @@ use Core\Csrf;
       <div class="basic-fields">
         <input type="text" id="cat_name" maxlength="60" placeholder="分类名称（如：五金件）" required>
         <input type="number" id="cat_sort" placeholder="排序" value="0" style="width:80px">
-        <button type="submit" class="btn btn-primary" id="cat_btn">＋ 新增</button>
+        <button type="submit" class="btn btn-primary" id="cat_btn"><?= icon('plus') ?> 新增</button>
         <button type="button" class="btn" id="cat_cancel" style="display:none" onclick="resetForm('cat')">取消编辑</button>
       </div>
     </form>
@@ -55,7 +55,7 @@ use Core\Csrf;
 
   <!-- ============ 商品单位 ============ -->
   <div class="basic-card">
-    <div class="basic-card-head"><h3>📏 商品单位</h3><span class="basic-tip">用于新增商品时选择计量单位（个/件/箱…）</span></div>
+    <div class="basic-card-head"><h3><?= icon('ruler') ?> 商品单位</h3><span class="basic-tip">用于新增商品时选择计量单位（个/件/箱…）</span></div>
 
     <?php if ($canCreate || $canEdit): ?>
     <form class="basic-form" id="unitForm" onsubmit="return saveItem('unit')">
@@ -63,7 +63,7 @@ use Core\Csrf;
       <div class="basic-fields">
         <input type="text" id="unit_name" maxlength="10" placeholder="单位名称（如：套）" required>
         <input type="number" id="unit_sort" placeholder="排序" value="0" style="width:80px">
-        <button type="submit" class="btn btn-primary" id="unit_btn">＋ 新增</button>
+        <button type="submit" class="btn btn-primary" id="unit_btn"><?= icon('plus') ?> 新增</button>
         <button type="button" class="btn" id="unit_cancel" style="display:none" onclick="resetForm('unit')">取消编辑</button>
       </div>
     </form>
@@ -117,7 +117,7 @@ function resetForm(type){
   $(type + '_id').value = '';
   $(type + '_name').value = '';
   $(type + '_sort').value = '0';
-  $(type + '_btn').textContent = '＋ 新增';
+  $(type + '_btn').innerHTML = '<?= icon('plus') ?> 新增';
   $(type + '_cancel').style.display = 'none';
 }
 

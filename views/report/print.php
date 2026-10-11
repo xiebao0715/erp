@@ -25,7 +25,7 @@ table.data-table th{background:#eee;-webkit-print-color-adjust:exact;print-color
 </style>
 </head>
 <body>
-<div class="toolbar"><button class="btn btn-primary" onclick="window.print()">🖨 打印</button></div>
+<div class="toolbar"><button class="btn btn-primary" onclick="window.print()"><?= icon('printer') ?> 打印</button></div>
 <div class="print-header">
   <h2><?= e($printTitle) ?></h2>
   <p><?= e($title) ?> · 日期范围：<?= e($from) ?> ~ <?= e($to) ?> · 打印时间：<?= e(date('Y-m-d H:i:s')) ?></p>

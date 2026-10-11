@@ -4,7 +4,7 @@ use Core\Csrf;
 <div class="page-head">
   <h2>报表统计</h2>
   <div class="actions">
-    <?php if ($canPrint): ?><button class="btn" onclick="printReport()">🖨 打印</button><?php endif; ?>
+    <?php if ($canPrint): ?><button class="btn" onclick="printReport()"><?= icon('printer') ?> 打印</button><?php endif; ?>
   </div>
 </div>
 
@@ -37,7 +37,7 @@ use Core\Csrf;
 </div>
 
 <?php if ((int)$lowCount > 0): ?>
-<div class="alert alert-danger" style="margin-bottom:16px">⚠ 当前有 <strong><?= (int)$lowCount ?></strong> 种商品库存不足，请前往「库存预警」处理。</div>
+<div class="alert alert-danger" style="margin-bottom:16px"><?= icon('alert-triangle') ?> 当前有 <strong><?= (int)$lowCount ?></strong> 种商品库存不足，请前往「库存预警」处理。</div>
 <?php endif; ?>
 
 <!-- 入库明细表 -->

@@ -47,7 +47,7 @@ $currency = '¥';
   <!-- 库存预警 -->
   <?php if (!empty($lowStock)): ?>
   <div class="content-card" style="padding:16px">
-    <h3 style="font-size:15px;margin-bottom:12px;color:#e67e22">⚠ 库存预警</h3>
+    <h3 style="font-size:15px;margin-bottom:12px;color:#e67e22"><?= icon('alert-triangle') ?> 库存预警</h3>
     <div class="table-wrap">
     <table class="data-table">
       <thead><tr><th>编码</th><th>商品名称</th><th>规格</th><th>库存</th><th>最低库存</th></tr></thead>

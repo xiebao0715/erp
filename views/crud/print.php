@@ -20,11 +20,12 @@ use Core\Database;
   .no-print { text-align:right; margin-bottom:14px; }
   button { padding:6px 16px; cursor:pointer; border:1px solid #999; background:#fff; border-radius:4px; }
   button:hover { background:#f0f0f0; }
+  .icon { display:inline-block; width:15px; height:15px; vertical-align:-2px; margin-right:4px; }
   @media print { .no-print { display:none; } th { background:#eee !important; -webkit-print-color-adjust:exact; print-color-adjust:exact; } }
 </style>
 </head>
 <body>
-  <div class="no-print"><button onclick="window.print()">🖨 打印</button></div>
+  <div class="no-print"><button onclick="window.print()"><?= icon('printer') ?> 打印</button></div>
   <div class="print-header">
     <h1><?= e(setting('print_title', $siteName ?? '工厂仓库 ERP 管理系统')) ?></h1>
     <p><?= e($title) ?></p>

@@ -16,11 +16,12 @@
   th { background:#eee; }
   .no-print { text-align:right; margin-bottom:14px; }
   button { padding:6px 16px; cursor:pointer; border:1px solid #999; background:#fff; border-radius:4px; }
+  .icon { display:inline-block; width:15px; height:15px; vertical-align:-2px; margin-right:4px; }
   @media print { .no-print { display:none; } th { background:#eee !important; -webkit-print-color-adjust:exact; print-color-adjust:exact; } }
 </style>
 </head>
 <body>
-  <div class="no-print"><button onclick="window.print()">🖨 打印</button></div>
+  <div class="no-print"><button onclick="window.print()"><?= icon('printer') ?> 打印</button></div>
   <div class="print-header"><h1><?= e(setting('print_title', '工厂仓库 ERP 管理系统')) ?></h1><p>成员管理</p></div>
   <div class="print-meta"><span>打印时间：<?= e(date('Y-m-d H:i')) ?></span><span>共 <?= count($items) ?> 条</span></div>
   <table>

@@ -6,7 +6,7 @@ $cu = Auth::instance();
 <div class="page-head">
   <h2>成员管理</h2>
   <div class="actions">
-    <button class="btn btn-primary" id="btnAddUser">＋ 添加成员</button>
+    <button class="btn btn-primary" id="btnAddUser"><?= icon('plus') ?> 添加成员</button>
   </div>
 </div>
 

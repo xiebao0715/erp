@@ -19,7 +19,7 @@ use Core\Csrf;
     </div>
     <div class="loginbg-ops">
       <label class="btn btn-primary" style="cursor:pointer">
-        📷 上传背景图片
+        <?= icon('image') ?> 上传背景图片
         <input type="file" id="bgFile" accept="image/jpeg,image/png,image/gif,image/webp" hidden>
       </label>
       <label class="loginbg-switch"><input type="checkbox" id="bgEnabled" <?= $loginBgEnabled ? 'checked' : '' ?>> 开启自定义背景</label>
@@ -52,7 +52,7 @@ use Core\Csrf;
     </table>
   </div>
   <div style="margin-top:16px;text-align:right">
-    <button type="submit" class="btn btn-primary">💾 保存设置</button>
+    <button type="submit" class="btn btn-primary"><?= icon('save') ?> 保存设置</button>
   </div>
 </form>
 

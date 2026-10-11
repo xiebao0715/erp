@@ -31,7 +31,7 @@ tr.group-total td{font-weight:bold;background:#fcfcfc;-webkit-print-color-adjust
 </style>
 </head>
 <body>
-<div class="toolbar"><button class="btn btn-primary" onclick="window.print()">🖨 打印</button></div>
+<div class="toolbar"><button class="btn btn-primary" onclick="window.print()"><?= icon('printer') ?> 打印</button></div>
 <div class="print-header">
   <h2><?= e($printTitle) ?></h2>
   <p><?= e($title) ?> · 打印时间：<?= e(date('Y-m-d H:i:s')) ?> · 打印人：<?= e($printer) ?></p>

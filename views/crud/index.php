@@ -12,8 +12,8 @@ $isProduct = ($module === 'product');
 <div class="page-head">
   <h2><?= e($title) ?></h2>
   <div class="actions">
-    <?php if ($isProduct): ?><a class="btn" style="color:#8e44ad" href="<?= url('basic/index') ?>">🗂 分类 / 单位设置</a><?php endif; ?>
-    <?php if ($canCreate): ?><button class="btn btn-primary" data-act="create">＋ 新增</button><?php endif; ?>
+    <?php if ($isProduct): ?><a class="btn" style="color:#8e44ad" href="<?= url('basic/index') ?>"><?= icon('folder') ?> 分类 / 单位设置</a><?php endif; ?>
+    <?php if ($canCreate): ?><button class="btn btn-primary" data-act="create"><?= icon('plus') ?> 新增</button><?php endif; ?>
   </div>
 </div>
 

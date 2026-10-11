@@ -16,11 +16,12 @@ try {
     if ($row) $siteName = $row['value'];
 } catch (Throwable $e) {}
 
-// 侧边栏菜单图标
+// 侧边栏菜单图标（内联 SVG，图标名见 helpers.php 的 icon_map()）
 $icons = [
-    'dashboard' => '🏠', 'user' => '👥', 'warehouse' => '🏭', 'product' => '📦', 'basic' => '🗂',
-    'inbound' => '📥', 'outbound' => '📤', 'production' => '🏗️', 'line' => '🛠️', 'inventory' => '📊', 'supplier' => '🚚',
-    'customer' => '🤝', 'report' => '📈', 'settings' => '⚙️',
+    'dashboard' => 'home', 'user' => 'users', 'warehouse' => 'warehouse', 'product' => 'package', 'basic' => 'folder',
+    'inbound' => 'arrow-down-line', 'outbound' => 'arrow-up-line', 'production' => 'factory', 'line' => 'wrench',
+    'inventory' => 'chart-column', 'supplier' => 'truck',
+    'customer' => 'handshake', 'report' => 'trending-up', 'settings' => 'settings',
 ];
 ?>
 <!DOCTYPE html>
@@ -55,7 +56,7 @@ $icons = [
         $url = url($key . '/index');
         $active = ($curModule === $key) ? 'active' : '';
     ?>
-      <a class="menu-item <?= $active ?>" href="<?= $url ?>"><span class="ico"><?= $icons[$key] ?? '•' ?></span><span><?= e($label) ?></span></a>
+      <a class="menu-item <?= $active ?>" href="<?= $url ?>"><span class="ico"><?= icon($icons[$key] ?? 'package') ?></span><span><?= e($label) ?></span></a>
     <?php endforeach; ?>
   </div>
 

@@ -10,8 +10,8 @@ $cu = Auth::instance();
 <div class="page-head">
   <h2>生产管理</h2>
   <div class="actions">
-    <button class="btn <?= ($canCreate ?? false) ? 'btn-primary' : '' ?>" id="tabBtnTask" type="button">📋 生产任务</button>
-    <button class="btn" id="tabBtnPlan" type="button">🧾 生产方案</button>
+    <button class="btn <?= ($canCreate ?? false) ? 'btn-primary' : '' ?>" id="tabBtnTask" type="button"><?= icon('clipboard-list') ?> 生产任务</button>
+    <button class="btn" id="tabBtnPlan" type="button"><?= icon('file-text') ?> 生产方案</button>
   </div>
 </div>
 
@@ -31,7 +31,7 @@ $cu = Auth::instance();
       <button type="submit">查询</button>
     </form>
     <div class="toolbar-right">
-      <?php if ($canCreate): ?><button class="btn btn-primary" id="btnAddTask">＋ 下达生产任务</button><?php endif; ?>
+      <?php if ($canCreate): ?><button class="btn btn-primary" id="btnAddTask"><?= icon('plus') ?> 下达生产任务</button><?php endif; ?>
     </div>
   </div>
 
@@ -113,7 +113,7 @@ $cu = Auth::instance();
       生产方案（BOM）定义每生产 1 件成品所需消耗的材料及数量；下达任务时系统自动按方案展开领料。
     </div>
     <div class="toolbar-right">
-      <?php if ($canCreate): ?><button class="btn btn-primary" id="btnAddPlan">＋ 新增方案</button><?php endif; ?>
+      <?php if ($canCreate): ?><button class="btn btn-primary" id="btnAddPlan"><?= icon('plus') ?> 新增方案</button><?php endif; ?>
     </div>
   </div>
 
@@ -259,7 +259,7 @@ $cu = Auth::instance();
               <tbody id="planItemsBody"></tbody>
             </table>
           </div>
-          <button type="button" class="btn" id="btnAddPlanRow" style="margin-top:8px">＋ 添加一行</button>
+          <button type="button" class="btn" id="btnAddPlanRow" style="margin-top:8px"><?= icon('plus') ?> 添加一行</button>
         </div>
       </div>
       <div class="modal-foot">
@@ -291,7 +291,7 @@ $cu = Auth::instance();
   <div class="modal">
     <div class="modal-head"><h3>生产完成</h3></div>
     <div class="modal-body" style="text-align:center;padding:24px 20px">
-      <div style="font-size:40px;margin-bottom:8px">✅</div>
+      <div class="result-icon"><?= icon('circle-check') ?></div>
       <div id="resultMsg" style="font-size:15px;margin-bottom:18px"></div>
       <div>
         <a class="btn btn-primary" id="resultViewBtn" href="#" target="_blank">查看领料出库单</a>
@@ -761,7 +761,7 @@ function addPlanRow(selectedId, qty, remark, extraOpt){
     + '<td><input type="number" class="p-qty" name="quantity[]" step="0.0001" min="0.0001" value="'+(qty != null ? qty : 1)+'" style="width:100%" title="每生产 1 件成品的消耗量，不能超过当前库存"></td>'
     + '<td><input type="text" class="p-unit" disabled value="" style="width:100%"></td>'
     + '<td><input type="text" class="p-remark" name="remark[]" maxlength="255" value="'+esc(remark||'')+'" style="width:100%"></td>'
-    + '<td style="text-align:center"><button type="button" class="btn-link danger p-del">✕ 删除</button></td>';
+    + '<td style="text-align:center"><button type="button" class="btn-link danger p-del" title="删除"><?= icon('x') ?> 删除</button></td>';
   body.appendChild(tr);
   var sel = tr.querySelector('.p-material');
   if (selectedId) sel.value = selectedId;

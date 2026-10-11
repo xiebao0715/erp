@@ -213,3 +213,21 @@ table.data-table .badge-warn{background:#fff4e6;color:#f39c12}
 .batch-count{font-size:13px;color:#888;white-space:nowrap}
 .batch-action{padding:6px 10px;border:1px solid var(--border);border-radius:4px;font-size:13px;min-width:120px;background:#fff;cursor:pointer}
 .batch-action:focus{outline:none;border-color:var(--primary)}
+
+/* ========== 内联 SVG 图标（替代 emoji） ========== */
+.icon{display:inline-block;width:1.05em;height:1.05em;vertical-align:-0.16em;flex-shrink:0}
+.btn .icon{width:15px;height:15px;vertical-align:-2px}
+.btn-sm .icon{width:13px;height:13px}
+h2 .icon,h3 .icon,.alert .icon{margin-right:5px;vertical-align:-0.12em}
+.btn .icon{margin-right:0}
+/* 侧边栏菜单图标 */
+.sidebar .menu-item .ico{display:inline-flex;align-items:center;justify-content:center}
+.sidebar .menu-item .ico .icon{width:17px;height:17px}
+/* 明细行删除按钮图标 */
+.items-table .col-del button .icon{width:16px;height:16px;vertical-align:-3px}
+/* 成功结果弹窗大图标 */
+.result-icon{width:72px;height:72px;border-radius:50%;background:#e6f9ee;color:var(--success);display:flex;align-items:center;justify-content:center;margin:0 auto 10px}
+.result-icon .icon{width:40px;height:40px;stroke-width:2.2}
+/* 权限不足页大图标 */
+.denied-icon{width:96px;height:96px;border-radius:50%;background:#fdeaea;color:var(--danger);display:flex;align-items:center;justify-content:center;margin:0 auto}
+.denied-icon .icon{width:46px;height:46px}

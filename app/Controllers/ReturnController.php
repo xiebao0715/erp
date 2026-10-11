@@ -20,9 +20,6 @@ final class ReturnController extends BaseController
 {
     protected string $module = 'return';
 
-    /** 退回单的「已完成」待办推进归入编辑权限（全局 complete 默认映射为 operate，此处覆盖） */
-    protected array $actionMap = ['complete' => 'edit'];
-
     public const TYPE_OUT_RETURN = 1; // 出库反回：客户退货，商品入回仓库（加库存）
     public const TYPE_IN_RETURN  = 2; // 入库退回：退回给供应商，商品出仓库（扣库存）
     public const TYPE_NAMES = [1 => '出库反回', 2 => '入库退回'];
@@ -107,32 +104,10 @@ final class ReturnController extends BaseController
             'categories' => $this->db->fetchAll("SELECT id, name FROM product_categories ORDER BY sort ASC, id ASC"),
             'typeNames'  => self::TYPE_NAMES,
             'canCreate' => Auth::instance()->isAdmin() ? true : \Core\Permission::check($this->module, 'create'),
-            'canEdit'   => Auth::instance()->isAdmin() ? true : \Core\Permission::check($this->module, 'edit'),
+            'canOperate' => Auth::instance()->isAdmin() ? true : \Core\Permission::check($this->module, 'operate'),
             'canDelete' => Auth::instance()->isAdmin() ? true : \Core\Permission::check($this->module, 'delete'),
             'canPrint'  => Auth::instance()->isAdmin() ? true : \Core\Permission::check($this->module, 'print'),
         ]);
-    }
-
-    /** 取单据明细（AJAX，编辑时使用） */
-    public function edit(): void
-    {
-        $id = (int)input('id', 0);
-        $order = $this->db->fetch(
-            "SELECT * FROM return_orders WHERE id=:id",
-            ['id' => $id]
-        );
-        if (!$order) {
-            $this->fail('记录不存在');
-        }
-        $items = $this->db->fetchAll(
-            "SELECT i.*,
-                    p.code AS product_code, p.name AS product_name, p.spec AS product_spec, p.unit AS product_unit
-             FROM return_items i
-             LEFT JOIN products p ON i.product_id = p.id
-             WHERE i.order_id=:id",
-            ['id' => $id]
-        );
-        $this->json(['order' => $order, 'items' => $items]);
     }
 
     /** 新增（AJAX） */
@@ -185,75 +160,6 @@ final class ReturnController extends BaseController
                 }
             });
             $this->ok('添加成功');
-        } catch (\RuntimeException $e) {
-            $this->fail($e->getMessage());
-        } catch (\Throwable $e) {
-            $this->fail('操作失败，请重试');
-        }
-    }
-
-    /** 更新（AJAX） */
-    public function update(): void
-    {
-        Csrf::verify();
-        $id = (int)input('id', 0);
-        $exists = $this->db->fetch("SELECT id, status, return_type, warehouse_id FROM return_orders WHERE id=:id", ['id' => $id]);
-        if (!$exists) {
-            $this->fail('记录不存在');
-        }
-
-        $data = $this->collectOrderInput();
-        $errors = $this->validateOrder($data);
-        if ($errors) {
-            $this->fail(implode('；', $errors));
-        }
-        // 入库退回（出仓方向）库存校验：原单据已生效时，先把旧占用加回再比较增量
-        if ((int)$data['status'] === 1 && (int)$data['return_type'] === self::TYPE_IN_RETURN) {
-            $stockErr = $this->checkStockForUpdate($data['warehouse_id'], $data['items'], $id, (int)$exists['status'] === 1);
-            if ($stockErr !== '') {
-                $this->fail($stockErr);
-            }
-        }
-
-        try {
-            $this->db->transaction(function ($db) use ($id, $exists, $data) {
-                // 原单据已生效时先按原方向回滚库存（原为入库退回则加回，原为出库退回则减回）
-                if ((int)$exists['status'] === 1) {
-                    $oldItems = $db->fetchAll("SELECT product_id, quantity FROM return_items WHERE order_id=:id", ['id' => $id]);
-                    $oldDelta = (int)$exists['return_type'] === self::TYPE_OUT_RETURN ? -1.0 : 1.0;
-                    foreach ($oldItems as $oi) {
-                        $this->adjustInventory($db, (int)$exists['warehouse_id'], (int)$oi['product_id'], $oldDelta * (float)$oi['quantity']);
-                    }
-                }
-                $db->delete('return_items', 'order_id = :id', ['id' => $id]);
-                $db->update('return_orders', [
-                    'return_type'  => $data['return_type'],
-                    'warehouse_id' => $data['warehouse_id'],
-                    'customer_id'  => $data['customer_id'],
-                    'supplier_id'  => $data['supplier_id'],
-                    'operator'     => $data['operator'],
-                    'total_amount' => $data['total_amount'],
-                    'return_date'  => $data['return_date'],
-                    'status'       => $data['status'],
-                    'remark'       => $data['remark'],
-                ], 'id = :id', ['id' => $id]);
-
-                foreach ($data['items'] as $row) {
-                    $db->insert('return_items', [
-                        'order_id'     => $id,
-                        'product_id'   => $row['product_id'],
-                        'quantity'     => $row['quantity'],
-                        'unit_price'   => $row['unit_price'],
-                        'amount'       => $row['amount'],
-                        'remark'       => $row['remark'],
-                    ]);
-                    if ((int)$data['status'] === 1) {
-                        $delta = $data['return_type'] === self::TYPE_OUT_RETURN ? (float)$row['quantity'] : -(float)$row['quantity'];
-                        $this->adjustInventory($db, $data['warehouse_id'], $row['product_id'], $delta);
-                    }
-                }
-            });
-            $this->ok('编辑成功');
         } catch (\RuntimeException $e) {
             $this->fail($e->getMessage());
         } catch (\Throwable $e) {
@@ -492,42 +398,6 @@ final class ReturnController extends BaseController
             if ($stock < $qty) {
                 $p = $this->db->fetch("SELECT name FROM products WHERE id = :id", ['id' => $pid]);
                 return '库存不足：' . ($p['name'] ?? '商品' . $pid) . '（需要 ' . $qty . '，库存 ' . $stock . '）';
-            }
-        }
-        return '';
-    }
-
-    /** 入库退回编辑时的库存预检：原单已生效则旧占用先加回，仅校验新增量 */
-    private function checkStockForUpdate(int $warehouseId, array $newItems, int $returnOrderId, bool $oldActive): string
-    {
-        $oldMap = [];
-        if ($oldActive) {
-            $oldRows = $this->db->fetchAll(
-                "SELECT product_id, SUM(quantity) AS qty FROM return_items WHERE order_id = :id GROUP BY product_id",
-                ['id' => $returnOrderId]
-            );
-            foreach ($oldRows as $r) {
-                $oldMap[(int)$r['product_id']] = (float)$r['qty'];
-            }
-        }
-        $newMap = [];
-        foreach ($newItems as $row) {
-            $pid = (int)$row['product_id'];
-            $newMap[$pid] = ($newMap[$pid] ?? 0) + (float)$row['quantity'];
-        }
-        $allPids = array_unique(array_merge(array_keys($oldMap), array_keys($newMap)));
-        foreach ($allPids as $pid) {
-            $extra = ($newMap[$pid] ?? 0) - ($oldMap[$pid] ?? 0);
-            if ($extra <= 0) {
-                continue;
-            }
-            $stock = (float)$this->db->fetchColumn(
-                "SELECT quantity FROM inventory WHERE warehouse_id = :w AND product_id = :p",
-                ['w' => $warehouseId, 'p' => $pid]
-            );
-            if ($stock < $extra) {
-                $p = $this->db->fetch("SELECT name FROM products WHERE id = :id", ['id' => $pid]);
-                return '库存不足：' . ($p['name'] ?? '商品' . $pid) . '（需新增 ' . $extra . '，库存 ' . $stock . '）';
             }
         }
         return '';

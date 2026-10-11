@@ -75,7 +75,7 @@
       ?></td>
       <td class="col-actions">
         <button class="btn-link" style="color:#2980b9" onclick="viewOrder(<?= (int)$r['id'] ?>)">详情</button>
-        <?php if ($canEdit && (int)$r['status']===0): ?><button class="btn-link" style="color:#27ae60;font-weight:bold" onclick="completeOrder(<?= (int)$r['id'] ?>, <?= $type ?>)">已完成</button><?php endif; ?>
+        <?php if ($canOperate && (int)$r['status']===0): ?><button class="btn-link" style="color:#27ae60;font-weight:bold" onclick="completeOrder(<?= (int)$r['id'] ?>, <?= $type ?>)">已完成</button><?php endif; ?>
         <?php if ($canDelete && (int)($r['production_cancel_id'] ?? 0) === 0): ?><button class="btn-link danger" onclick="delOrder(<?= (int)$r['id'] ?>, <?= $type ?>)">删除</button><?php endif; ?>
       </td>
     </tr>
@@ -113,7 +113,7 @@ function delOrder(id, type){
 
 function viewOrder(id){ window.open('<?= url('return/detail') ?>&id='+id, '_blank'); }
 
-<?php if ($canEdit): ?>
+<?php if ($canOperate): ?>
 function completeOrder(id, type){
   var word = type === 2 ? '退回' : '反回';
   confirmDelete({

@@ -156,16 +156,22 @@
         hit++;
         var d = document.createElement('div');
         d.textContent = o.text;
-        var on = o.value === sel.value;
-        d.style.cssText = 'padding:6px 10px;font-size:13px;cursor:pointer;' + (on ? 'background:#ecf5ff;color:#409eff;' : '');
-        d.addEventListener('mouseenter', function () { if (o.value !== sel.value) d.style.background = '#f5f7fa'; });
-        d.addEventListener('mouseleave', function () { if (o.value !== sel.value) d.style.background = ''; });
-        d.addEventListener('click', function () {
-          sel.value = o.value;
-          sel.dispatchEvent(new Event('change', { bubbles: true }));
-          refreshDisp();
-          close();
-        });
+        if (o.disabled || o.getAttribute('data-used') === '1') {
+          // 已被其他明细行选用的商品：置灰标注（已添加），点击提示不可重复选择
+          d.style.cssText = 'padding:6px 10px;font-size:13px;color:#c0c4cc;cursor:not-allowed;background:#fafafa;';
+          d.addEventListener('click', function () { toast('该商品已添加，不能重复选择', 'error'); });
+        } else {
+          var on = o.value === sel.value;
+          d.style.cssText = 'padding:6px 10px;font-size:13px;cursor:pointer;' + (on ? 'background:#ecf5ff;color:#409eff;' : '');
+          d.addEventListener('mouseenter', function () { if (o.value !== sel.value) d.style.background = '#f5f7fa'; });
+          d.addEventListener('mouseleave', function () { if (o.value !== sel.value) d.style.background = ''; });
+          d.addEventListener('click', function () {
+            sel.value = o.value;
+            sel.dispatchEvent(new Event('change', { bubbles: true }));
+            refreshDisp();
+            close();
+          });
+        }
         list.appendChild(d);
       });
       if (!hit) {

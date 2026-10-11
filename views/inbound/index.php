@@ -49,7 +49,7 @@ $cu = Auth::instance();
       <td><strong><?= e($r['order_no']) ?></strong></td>
       <td style="max-width:200px"><?= e($r['goods_names'] ?: '-') ?></td>
       <td style="max-width:150px;color:#777"><?= e($r['goods_specs'] ?: '-') ?></td>
-      <td><span style="font-weight:bold"><?= number_format((float)($r['total_qty'] ?? 0), 2) ?></span></td>
+      <td><span style="font-weight:bold"><?= number_format((float)($r['total_qty'] ?? 0) - (float)($r['return_done_qty'] ?? 0), 2) ?></span><?php if ((float)($r['return_done_qty'] ?? 0) > 0): ?><br><span style="font-size:12px;color:#999" title="含已退回 <?= number_format((float)$r['return_done_qty'], 2) ?>">原入库 <?= number_format((float)($r['total_qty'] ?? 0), 2) ?></span><?php endif; ?></td>
       <td><?= e($r['warehouse_name']) ?></td>
       <td><?php if ((int)($r['production_id'] ?? 0) > 0): ?><span class="badge badge-admin" title="由生产任务完工自动生成">生产入库</span><?php else: ?><?= e($r['supplier_name']) ?><?php endif; ?></td>
       <td><?= e($r['operator']) ?></td>
@@ -64,7 +64,6 @@ $cu = Auth::instance();
         <button class="btn-link" style="color:#2980b9" onclick="viewOrder(<?= (int)$r['id'] ?>)">详情</button>
         <?php if ($canReturn && (int)$r['status']===1 && (int)($r['production_id'] ?? 0) === 0 && (float)($r['total_qty'] ?? 0) - (float)($r['return_pending_qty'] ?? 0) - (float)($r['return_done_qty'] ?? 0) > 0): ?><button class="btn-link" style="color:#e67e22" onclick="openReturn(<?= (int)$r['id'] ?>)">退回</button><?php endif; ?>
         <?php if ($canOperate && (int)$r['status']===0 && (int)($r['production_id'] ?? 0) === 0): ?><button class="btn-link" style="color:#27ae60;font-weight:bold" onclick="completeOrder(<?= (int)$r['id'] ?>)">已完成</button><?php endif; ?>
-        <?php if ($canEdit && (int)($r['production_id'] ?? 0) === 0): ?><button class="btn-link" onclick="editOrder(<?= (int)$r['id'] ?>)">编辑</button><?php endif; ?>
         <?php if ($canDelete && (int)($r['production_id'] ?? 0) === 0): ?><button class="btn-link danger" onclick="delOrder(<?= (int)$r['id'] ?>)">删除</button><?php endif; ?>
       </td>
     </tr>
@@ -86,7 +85,7 @@ $totalPages = $page['totalPages']; $cur = $page['page']; $total = $page['total']
   </div>
 </div>
 
-<!-- 新增/编辑入库单弹窗 -->
+<!-- 新增入库单弹窗 -->
 <div class="modal-mask" id="orderModal">
   <div class="modal modal-lg">
     <div class="modal-head"><h3 id="modalTitle">新增入库单</h3><button class="close" type="button">&times;</button></div>
@@ -180,12 +179,24 @@ $totalPages = $page['totalPages']; $cur = $page['page']; $total = $page['total']
 <script>
 var PRODUCTS = <?= json_encode($products, JSON_UNESCAPED_UNICODE) ?>;
 
-function productOptions(selected){
+function productOptions(selected, exceptSel){
+  // 其他明细行已选用的商品置灰标注（已添加），本行不能重复选择（exceptSel 为本行下拉，跳过）
+  var used = {};
+  document.querySelectorAll('#itemsBody .it-product').forEach(function(s){
+    if (s !== exceptSel && s.value) used[s.value] = true;
+  });
   var html = '<option value="">请选择商品</option>';
   PRODUCTS.forEach(function(p){
-    html += '<option value="'+p.id+'" data-cost="'+p.cost+'" data-unit="'+e2(p.unit)+'" data-name="'+e2(p.name)+'" data-spec="'+e2(p.spec)+'"'+(String(p.id)===String(selected)?' selected':'')+'>'+e2(p.code)+' / '+e2(p.name)+(p.spec?' ('+e2(p.spec)+')':'')+'</option>';
+    var isUsed = used[p.id] && String(p.id) !== String(selected);
+    html += '<option value="'+p.id+'" data-cost="'+p.cost+'" data-unit="'+e2(p.unit)+'" data-name="'+e2(p.name)+'" data-spec="'+e2(p.spec)+'"'+(isUsed?' data-used="1" disabled':'')+(String(p.id)===String(selected)?' selected':'')+'>'+e2(p.code)+' / '+e2(p.name)+(p.spec?' ('+e2(p.spec)+')':'')+(isUsed?'（已添加）':'')+'</option>';
   });
   return html;
+}
+// 改选/增删行后刷新全部下拉：已选商品在其他行置灰标注，取消或删行后恢复可选
+function refreshProductOptions(){
+  document.querySelectorAll('#itemsBody .it-product').forEach(function(sel){
+    sel.innerHTML = productOptions(sel.value, sel);
+  });
 }
 function e2(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
 
@@ -199,6 +210,7 @@ function addItem(pid, qty, price, remark){
     '<td><input type="text" class="it-remark" value="'+e2(remark||'')+'"></td>'+
     '<td class="col-del"><button type="button" onclick="removeRow(this)" title="删除"><?= icon('x') ?></button></td>';
   document.getElementById('itemsBody').appendChild(tr);
+  refreshProductOptions(); // 新行加入后同步隐藏其他行已选商品
   // 触发金额计算
   var qtyInput = tr.querySelector('.it-qty');
   recalcRow(qtyInput);
@@ -215,6 +227,7 @@ function onProductChange(sel, keep){
     priceInput.value = cost;
   }
   recalcRow(priceInput || sel);
+  refreshProductOptions(); // 本行改选后同步隐藏/恢复其他行下拉中的商品
 }
 
 function recalcRow(input){
@@ -239,6 +252,7 @@ function recalcTotal(){
 function removeRow(btn){
   btn.closest('tr').remove();
   recalcTotal();
+  refreshProductOptions(); // 删除行后其商品恢复到其他行下拉
 }
 
 function resetForm(){
@@ -256,28 +270,6 @@ function openCreate(){
   resetForm();
   document.getElementById('modalTitle').textContent = '新增入库单';
   Modal.open('orderModal');
-}
-
-function editOrder(id){
-  Api.get('<?= url('inbound/edit') ?>&id='+id).then(function(res){
-    if (!res || !res.order){ toast(res.message||'加载失败','error'); return; }
-    var f = document.getElementById('orderForm');
-    f.reset();
-    f.action = '<?= url('inbound/update') ?>&id='+id;
-    document.getElementById('itemsBody').innerHTML = '';
-    f.querySelector('[name=id]').value = res.order.id;
-    document.getElementById('fldWarehouse').value = res.order.warehouse_id;
-    document.getElementById('fldSupplier').value = res.order.supplier_id;
-    document.getElementById('fldDate').value = res.order.inbound_date;
-    document.getElementById('fldStatus').value = res.order.status;
-    document.getElementById('fldRemark').value = res.order.remark || '';
-    (res.items||[]).forEach(function(it){
-      addItem(it.product_id, it.quantity, it.unit_price, it.remark);
-    });
-    recalcTotal();
-    document.getElementById('modalTitle').textContent = '编辑入库单';
-    Modal.open('orderModal');
-  }).catch(function(){ toast('网络异常','error'); });
 }
 
 function delOrder(id){
@@ -387,8 +379,7 @@ function currentQuery(){
 // 多选批量打印 / 删除
 bindBatch({
   <?php if ($canPrint): ?>printUrl: function(){ return '<?= url('inbound/print') ?>' + currentQuery(); },<?php endif; ?>
-  deleteUrl: '<?= $canDelete ? url('inbound/destroy') : '' ?>'<?php if ($canEdit): ?>,
-  editFn: function(id){ editOrder(id); }<?php endif; ?>
+  deleteUrl: '<?= $canDelete ? url('inbound/destroy') : '' ?>'
 });
 
 // 表单提交：组装 items 数据

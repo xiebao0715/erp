@@ -41,9 +41,7 @@ final class ProductionController extends BaseController
             $params['st'] = (int)$statusFilter;
         }
 
-        $goodsCols = "(SELECT GROUP_CONCAT(m.name SEPARATOR '、') FROM production_items pi2
-                      JOIN products m ON pi2.material_id = m.id WHERE pi2.order_id = po.id) AS material_names,
-                     (SELECT COALESCE(SUM(pi3.quantity), 0) FROM production_items pi3 WHERE pi3.order_id = po.id) AS material_qty,
+        $goodsCols = "(SELECT COALESCE(SUM(pi3.quantity), 0) FROM production_items pi3 WHERE pi3.order_id = po.id) AS material_qty,
                      (SELECT COALESCE(SUM(pc.quantity), 0) FROM production_cancels pc WHERE pc.production_id = po.id AND pc.status = 0) AS cancel_pending_qty,
                      (SELECT COALESCE(SUM(pc.quantity), 0) FROM production_cancels pc WHERE pc.production_id = po.id AND pc.status = 1) AS cancel_done_qty,
                      (SELECT pc2.id FROM production_cancels pc2 WHERE pc2.production_id = po.id AND pc2.status = 0 ORDER BY pc2.id DESC LIMIT 1) AS cancel_pending_id";
@@ -117,12 +115,16 @@ final class ProductionController extends BaseController
             'materials'   => $this->db->fetchAll(
                 "SELECT p.id, p.code, p.name, p.spec, p.unit, p.cost,
                         COALESCE((SELECT SUM(i.quantity) FROM inventory i WHERE i.product_id = p.id), 0) AS stock
-                 FROM products p WHERE p.status = 1 ORDER BY p.code"
+                 FROM products p
+                 LEFT JOIN product_categories pc ON p.category_id = pc.id
+                 WHERE p.status = 1
+                   AND p.category NOT IN ('成品','产品')
+                   AND COALESCE(pc.name,'') NOT IN ('成品','产品')
+                 ORDER BY p.code"
             ),
             'warehouses'  => $this->db->fetchAll("SELECT id, name FROM warehouses WHERE status=1 ORDER BY name"),
             'lines'       => $this->db->fetchAll("SELECT id, code, name, manager FROM production_lines WHERE status=1 ORDER BY code"),
             'canCreate'   => Auth::instance()->isAdmin() || Permission::check($this->module, 'create'),
-            'canEdit'     => Auth::instance()->isAdmin() || Permission::check($this->module, 'edit'),
             'canStart'    => Auth::instance()->isAdmin() || Permission::check($this->module, 'start'),
             'canCancel'   => Auth::instance()->isAdmin() || Permission::check($this->module, 'cancel'),
             'canReturn'   => Auth::instance()->isAdmin() || Permission::check($this->module, 'return'),
@@ -165,25 +167,6 @@ final class ProductionController extends BaseController
         }
     }
 
-    /** 编辑方案（AJAX）：按成品整表替换其全部消耗材料行 */
-    public function planUpdate(): void
-    {
-        $id = (int)input('id', 0);
-        if (!$this->db->fetch("SELECT id FROM production_boms WHERE id = :id", ['id' => $id])) {
-            $this->fail('方案不存在');
-        }
-        $data = $this->collectPlanInput();
-        if ($err = $this->validatePlan($data)) {
-            $this->fail($err);
-        }
-        try {
-            $this->savePlanRows($data);
-            $this->ok('生产方案编辑成功，共 ' . count($data['rows']) . ' 项消耗材料');
-        } catch (\Throwable $e) {
-            $this->fail($e instanceof \PDOException ? '操作失败，请重试' : $e->getMessage());
-        }
-    }
-
     /** 删除方案（AJAX）：按成品删除其整套方案（pid 优先）；兼容单行删除（id） */
     public function planDestroy(): void
     {
@@ -213,24 +196,6 @@ final class ProductionController extends BaseController
     }
 
     // ================= 生产任务单 =================
-
-    /** 任务编辑数据（AJAX） */
-    public function edit(): void
-    {
-        $id = (int)input('id', 0);
-        $order = $this->db->fetch("SELECT * FROM production_orders WHERE id = :id", ['id' => $id]);
-        if (!$order) {
-            $this->fail('任务单不存在');
-        }
-        $items = $this->db->fetchAll(
-            "SELECT i.*, m.code AS material_code, m.name AS material_name, m.spec AS material_spec, m.unit AS material_unit
-             FROM production_items i
-             LEFT JOIN products m ON i.material_id = m.id
-             WHERE i.order_id = :id",
-            ['id' => $id]
-        );
-        $this->json(['order' => $order, 'items' => $items]);
-    }
 
     /** 新增任务（AJAX）：保存任务与材料快照；直接下达为生产中时立即领料出库（扣材料，成品不入库） */
     public function store(): void
@@ -277,85 +242,6 @@ final class ProductionController extends BaseController
                 $this->ok('生产任务已下达并完成领料，材料已出库，成品待完工入库', ['outbound_id' => $outboundId]);
             }
             $this->ok('生产任务已下达（待生产）');
-        } catch (\Throwable $e) {
-            $this->fail($e instanceof \PDOException ? '操作失败，请重试' : $e->getMessage());
-        }
-    }
-
-    /**
-     * 更新任务（AJAX）：
-     * - 旧状态已完成：回滚成品入库单+领料出库单；旧状态生产中：回滚领料出库单
-     * - 保存为生产中时按新明细重新领料出库；保存为待生产则不动库存
-     */
-    public function update(): void
-    {
-        $id = (int)input('id', 0);
-        $old = $this->db->fetch("SELECT * FROM production_orders WHERE id = :id", ['id' => $id]);
-        if (!$old) {
-            $this->fail('任务单不存在');
-        }
-        $data = $this->collectTaskInput();
-        if ($err = $this->validateTask($data)) {
-            $this->fail($err);
-        }
-        if ($this->hasCancels((int)$old['id'])) {
-            $this->fail('该任务存在取消生产记录，不能编辑；如确需调整请先删除任务后重新下达');
-        }
-        try {
-            $newOutboundId = 0;
-            $this->db->transaction(function ($db) use ($id, $old, $data, &$newOutboundId) {
-                $oldStatus = (int)$old['status'];
-                if ($oldStatus === 1) {
-                    // 回滚旧完工结果：成品扣回、材料加回，并删除自动生成的出入库单
-                    $this->rollbackOutbound($db, (int)$old['id'], (int)$old['outbound_id']);
-                    $this->rollbackInbound($db, (int)$old['id'], (int)($old['inbound_id'] ?? 0));
-                } elseif ($oldStatus === 2) {
-                    // 生产中：材料已领料出库，先加回
-                    $this->rollbackOutbound($db, (int)$old['id'], (int)$old['outbound_id']);
-                }
-
-                $items = $this->buildItems($db, (int)$data['product_id'], (float)$data['quantity']);
-                if (!$items) {
-                    throw new \RuntimeException('该商品尚未配置生产方案，请先在「生产方案」中添加消耗材料');
-                }
-                $db->delete('production_items', 'order_id = :id', ['id' => $id]);
-                $db->update('production_orders', [
-                    'product_id'           => $data['product_id'],
-                    'quantity'             => $data['quantity'],
-                    'warehouse_id'         => $data['warehouse_id'],
-                    'production_line_id'   => $data['production_line_id'],
-                    'inbound_warehouse_id' => $data['inbound_warehouse_id'],
-                    'operator'             => $data['operator'],
-                    'total_amount'         => $this->sumAmount($items),
-                    'production_date'      => $data['production_date'],
-                    'status'               => $data['status'],
-                    'outbound_id'          => 0,
-                    'inbound_id'           => 0,
-                    'remark'               => $data['remark'],
-                ], 'id = :id', ['id' => $id]);
-                $this->insertTaskItems($db, $id, $items);
-
-                // 保存为生产中：重新领料出库
-                if ((int)$data['status'] === 2) {
-                    if ($errs = $this->checkStock($db, (int)$data['warehouse_id'], $items)) {
-                        throw new \RuntimeException('库存不足：' . implode('，', $errs));
-                    }
-                    $newOutboundId = $this->createOutbound($db, $id, (string)$old['order_no'], $data, $items);
-                    $db->update('production_orders', ['outbound_id' => $newOutboundId], 'id = :id', ['id' => $id]);
-                }
-            });
-            $msg = '生产任务已更新';
-            $oldStatus = (int)$old['status'];
-            if ($oldStatus === 1) {
-                $msg .= '，原完工出入库单已回滚';
-            } elseif ($oldStatus === 2) {
-                $msg .= '，原领料出库单已回滚';
-            }
-            if ((int)$data['status'] === 2) {
-                $msg .= '，已按新明细重新领料出库';
-                $this->ok($msg, ['outbound_id' => $newOutboundId]);
-            }
-            $this->ok($msg);
         } catch (\Throwable $e) {
             $this->fail($e instanceof \PDOException ? '操作失败，请重试' : $e->getMessage());
         }
@@ -466,13 +352,13 @@ final class ProductionController extends BaseController
             $this->fail('请先点「开始生产」完成领料出库，再完成生产');
         }
         if ((int)$order['outbound_id'] <= 0) {
-            $this->fail('任务尚未领料出库，请编辑任务后重新开始生产');
+            $this->fail('任务尚未领料出库，请删除任务后重新下达');
         }
         if ((int)($order['inbound_id'] ?? 0) > 0) {
             $this->fail('成品已入库，请刷新页面后重试');
         }
         if ((int)$order['inbound_warehouse_id'] <= 0) {
-            $this->fail('任务未设置成品入库仓库，请先编辑任务');
+            $this->fail('任务未设置成品入库仓库，请删除任务后重新下达');
         }
         $pendingCancel = (float)$this->db->fetchColumn(
             "SELECT COALESCE(SUM(quantity),0) FROM production_cancels WHERE production_id = :id AND status = 0",
@@ -963,12 +849,20 @@ final class ProductionController extends BaseController
             if ($r['material_id'] === $d['product_id']) {
                 return $label . '：消耗商品不能与生产商品相同';
             }
-            $m = $this->db->fetch("SELECT id, name, status FROM products WHERE id = :id", ['id' => $r['material_id']]);
+            $m = $this->db->fetch(
+                "SELECT p.id, p.name, p.status, p.category, COALESCE(pc.name, '') AS cat_name
+                 FROM products p LEFT JOIN product_categories pc ON p.category_id = pc.id
+                 WHERE p.id = :id",
+                ['id' => $r['material_id']]
+            );
             if (!$m) {
                 return $label . '：消耗商品不存在';
             }
             if ((int)$m['status'] !== 1) {
                 return $label . '：消耗商品「' . $m['name'] . '」已停用，不能配置方案';
+            }
+            if (in_array($m['cat_name'], ['成品', '产品'], true) || in_array($m['category'], ['成品', '产品'], true)) {
+                return $label . '：消耗商品「' . $m['name'] . '」属于成品分类，不能作为消耗材料';
             }
             if ($r['quantity'] <= 0) {
                 return $label . '：「' . $m['name'] . '」单位用量必须大于 0';
@@ -1121,7 +1015,7 @@ final class ProductionController extends BaseController
         return round($sum, 2);
     }
 
-    /** 库存预检（同一事务连接，编辑回滚后调用可读到恢复后的库存） */
+    /** 库存预检（同一事务连接，删除回滚后调用可读到恢复后的库存） */
     private function checkStock($db, int $warehouseId, array $items): array
     {
         $errs = [];

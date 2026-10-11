@@ -30,24 +30,6 @@ CREATE TABLE `users` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='系统账号';
 
 -- ---------------------------------------------------------------------
--- 权限分配日志（成员权限每次变更的前后内容、操作人与变更摘要）
--- ---------------------------------------------------------------------
-DROP TABLE IF EXISTS `permission_logs`;
-CREATE TABLE `permission_logs` (
-  `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
-  `user_id` INT UNSIGNED NOT NULL COMMENT '被调整成员ID',
-  `user_name` VARCHAR(60) NOT NULL DEFAULT '' COMMENT '被调整成员姓名快照',
-  `operator_id` INT UNSIGNED NOT NULL DEFAULT 0 COMMENT '操作人ID',
-  `operator_name` VARCHAR(60) NOT NULL DEFAULT '' COMMENT '操作人姓名',
-  `changes` TEXT NULL COMMENT '变更摘要（按模块列出新增/移除的操作）',
-  `old_perms` TEXT NULL COMMENT '变更前权限JSON',
-  `new_perms` TEXT NULL COMMENT '变更后权限JSON',
-  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`),
-  KEY `idx_user` (`user_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='权限分配日志';
-
--- ---------------------------------------------------------------------
 -- 仓库
 -- ---------------------------------------------------------------------
 DROP TABLE IF EXISTS `warehouses`;

@@ -40,24 +40,31 @@ tr.group-total td{font-weight:bold;background:#fcfcfc;-webkit-print-color-adjust
 <?php else:
   // 顶部仅一行：出库仓库（多仓库时去重列出）+ 经办人（打印人）；日期/状态/客户在表格列中体现
   $warehouses = array_values(array_unique(array_filter(array_column($orders, 'warehouse_name'), fn($v) => $v !== null && $v !== '')));
+  // 数量显示净数（扣除已反回），已反回量单独成列；待反回尚未加回库存，仅在信息行提示
+  $returnDone = (float)($returnDone ?? 0);
+  $returnPending = (float)($returnPending ?? 0);
+  $returnByItem = $returnByItem ?? [];
+  $hasReturn = $returnDone > 0;
 ?>
 <div class="meta-lines">
   <div class="meta-line">
     <span><b>出库仓库：</b><?= e($warehouses === [] ? '-' : implode('、', $warehouses)) ?></span>
     <span><b>打印人：</b><?= e($printer) ?></span>
+    <?php if ($returnPending > 0): ?><span style="color:#e67e22"><b>待反回：</b><?= number_format($returnPending, 2) ?></span><?php endif; ?>
   </div>
 </div>
 <table class="items-table">
   <thead><tr>
     <th style="width:40px">#</th><th style="width:92px">出库日期</th><th style="width:70px">状态</th><th>客户</th>
     <th>商品编码</th><th>商品名称</th><th>规格</th>
-    <th style="width:60px">单位</th><th style="width:70px">数量</th><th style="width:90px">单价</th><th style="width:110px">金额</th><th>备注</th>
+    <th style="width:60px">单位</th><th style="width:70px">数量</th><?php if ($hasReturn): ?><th style="width:80px">已反回</th><?php endif; ?><th style="width:90px">单价</th><th style="width:110px">金额</th><th>备注</th>
   </tr></thead>
   <tbody>
   <?php $seq = 0; $grandQty = 0; $grandAmt = 0;
   foreach ($orders as $o):
     $items = $itemsByOrder[$o['id']] ?? [];
-    foreach ($items as $it): $seq++; $grandQty += (float)$it['quantity']; $grandAmt += (float)$it['amount']; ?>
+    foreach ($items as $it): $seq++; $grandQty += (float)$it['quantity']; $grandAmt += (float)$it['amount'];
+      $retQty = (float)($returnByItem[(int)$o['id']][(int)($it['product_id'] ?? 0)] ?? 0); ?>
     <tr>
       <td><?= $seq ?></td>
       <td><?= e($o['outbound_date']) ?></td>
@@ -67,7 +74,8 @@ tr.group-total td{font-weight:bold;background:#fcfcfc;-webkit-print-color-adjust
       <td><?= e($it['product_name'] ?? '') ?></td>
       <td><?= e($it['product_spec'] ?? '') ?></td>
       <td><?= e($it['product_unit'] ?? '') ?></td>
-      <td><?= number_format((float)$it['quantity'], 2) ?></td>
+      <td><?= number_format((float)$it['quantity'] - $retQty, 2) ?></td>
+      <?php if ($hasReturn): ?><td><?= $retQty > 0 ? number_format($retQty, 2) : '-' ?></td><?php endif; ?>
       <td><?= number_format((float)$it['unit_price'], 2) ?></td>
       <td><?= number_format((float)$it['amount'], 2) ?></td>
       <td><?= e($it['remark']) ?></td>
@@ -75,8 +83,9 @@ tr.group-total td{font-weight:bold;background:#fcfcfc;-webkit-print-color-adjust
     <?php endforeach; ?>
   <?php endforeach; ?>
   <tr class="group-total">
-    <td colspan="8" style="text-align:right"><b>合计</b></td>
-    <td><?= number_format($grandQty, 2) ?></td>
+    <td colspan="<?= $hasReturn ? 9 : 8 ?>" style="text-align:right"><b>合计</b></td>
+    <td><?= number_format($grandQty - $returnDone, 2) ?></td>
+    <?php if ($hasReturn): ?><td><?= number_format($returnDone, 2) ?></td><?php endif; ?>
     <td></td>
     <td>¥<?= number_format($grandAmt, 2) ?></td>
     <td></td>

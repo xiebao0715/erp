@@ -39,12 +39,12 @@ $cu = Auth::instance();
   <table class="data-table">
     <thead><tr>
       <th class="col-check"></th>
-      <th>任务单号</th><th>生产商品</th><th>规格型号</th><th>生产数量</th><th>消耗材料</th>
+      <th>任务单号</th><th>生产商品</th><th>规格型号</th><th>生产数量</th>
       <th>领料仓库</th><th>入库仓库</th><th>目标产线</th><th>产线负责人</th><th>经办人</th><th>生产日期</th><th>材料成本</th><th>状态</th><th>领料出库单</th><th>成品入库单</th><th>操作</th>
     </tr></thead>
     <tbody>
     <?php if (empty($page['items'])): ?>
-      <tr class="empty-row"><td colspan="17">暂无生产任务</td></tr>
+      <tr class="empty-row"><td colspan="16">暂无生产任务</td></tr>
     <?php else: foreach ($page['items'] as $r): ?>
       <tr>
         <td class="col-check"><input type="checkbox" class="row-check" value="<?= (int)$r['id'] ?>"></td>
@@ -52,7 +52,6 @@ $cu = Auth::instance();
         <td><?= e($r['product_name']) ?></td>
         <td style="max-width:130px;color:#777"><?= e($r['product_spec'] ?: '-') ?></td>
         <td><span style="font-weight:bold"><?= number_format((float)$r['quantity'], 2) ?></span> <?= e($r['product_unit']) ?><?php if ((float)($r['cancel_done_qty'] ?? 0) > 0): ?><br><span style="font-size:12px;color:#999" title="含已取消 <?= number_format((float)$r['cancel_done_qty'], 2) ?>">原计划 <?= number_format((float)$r['quantity'] + (float)$r['cancel_done_qty'], 2) ?></span><?php endif; ?></td>
-        <td style="max-width:170px" title="<?= e($r['material_names'] ?: '') ?>"><?= e($r['material_names'] ?: '-') ?></td>
         <td><?= e($r['warehouse_name']) ?></td>
         <td><?= e($r['inbound_warehouse_name'] ?: '-') ?></td>
         <td><?= e($r['line_name'] ?: '-') ?></td>
@@ -83,7 +82,6 @@ $cu = Auth::instance();
           <?php if ($canStart && $st === 2): ?><button class="btn-link" style="color:#27ae60;font-weight:bold" onclick="completeTask(<?= (int)$r['id'] ?>)">完成生产</button><?php endif; ?>
           <?php if ($canCancel && $st !== 3 && empty($r['cancel_pending_id']) && (float)$r['quantity'] > 0): ?><button class="btn-link" style="color:#e67e22" onclick="openCancel(<?= (int)$r['id'] ?>)">取消生产</button><?php endif; ?>
           <?php if ($canReturn && $st !== 3 && !empty($r['cancel_pending_id'])): ?><button class="btn-link" style="color:#e67e22;font-weight:bold" onclick="confirmCancel(<?= (int)$r['cancel_pending_id'] ?>)">确认取消</button><?php endif; ?>
-          <?php if ($canEdit && empty($r['cancel_pending_id']) && (float)($r['cancel_done_qty'] ?? 0) <= 0): ?><button class="btn-link" onclick="editTask(<?= (int)$r['id'] ?>)">编辑</button><?php endif; ?>
           <?php if ($canDelete): ?><button class="btn-link danger" onclick="delTask(<?= (int)$r['id'] ?>)">删除</button><?php endif; ?>
         </td>
       </tr>
@@ -139,7 +137,6 @@ $cu = Auth::instance();
         <td style="max-width:180px"><?= e($g['remarks'] ? implode('；', array_keys($g['remarks'])) : '-') ?></td>
         <td class="col-actions">
           <button class="btn-link" style="color:#2980b9" onclick='viewPlan(<?= (int)$g['product_id'] ?>, <?= json_encode($g['product_name'], JSON_UNESCAPED_UNICODE) ?>)'>详情</button>
-          <?php if ($canEdit): ?><button class="btn-link" onclick="editPlan(<?= (int)$g['first_id'] ?>)">编辑</button><?php endif; ?>
           <?php if ($canDelete): ?><button class="btn-link danger" onclick='delPlanProduct(<?= (int)$g['product_id'] ?>, <?= json_encode($g['product_name'], JSON_UNESCAPED_UNICODE) ?>)'>删除</button><?php endif; ?>
         </td>
       </tr>
@@ -472,7 +469,7 @@ document.getElementById('taskProduct').addEventListener('change', function(){
 document.getElementById('taskQty').addEventListener('input', recalcBom);
 document.getElementById('taskWarehouse').addEventListener('change', refreshAllStock);
 
-// ---------------- 任务：新增/编辑/删除/详情 ----------------
+// ---------------- 任务：新增/删除/详情 ----------------
 function resetTaskForm(){
   var f = document.getElementById('taskForm');
   f.reset();
@@ -491,28 +488,6 @@ document.getElementById('btnAddTask').addEventListener('click', function(){
   document.getElementById('taskModalTitle').textContent = '下达生产任务';
   Modal.open('taskModal');
 });
-
-function editTask(id){
-  Api.get('<?= url('production/edit') ?>&id='+id).then(function(res){
-    if (!res || !res.order){ toast(res.message||'加载失败','error'); return; }
-    resetTaskForm();
-    var f = document.getElementById('taskForm');
-    f.action = '<?= url('production/update') ?>&id='+id;
-    f.querySelector('[name=id]').value = res.order.id;
-    document.getElementById('taskProduct').value = res.order.product_id;
-    document.getElementById('taskQty').value = res.order.quantity;
-    document.getElementById('taskLine').value = res.order.production_line_id;
-    document.getElementById('taskWarehouse').value = res.order.warehouse_id;
-    document.getElementById('taskInboundWarehouse').value = res.order.inbound_warehouse_id || '';
-    document.getElementById('taskDate').value = res.order.production_date;
-    document.getElementById('taskStatus').value = (res.order.status === 0 || res.order.status === 2) ? res.order.status : 0;
-    document.getElementById('taskRemark').value = res.order.remark || '';
-    document.getElementById('taskModalTitle').textContent = '编辑生产任务';
-    STOCK_CACHE = {};
-    loadPlanItems(res.order.product_id, recalcBom);
-    Modal.open('taskModal');
-  }).catch(function(){ toast('网络异常','error'); });
-}
 
 function delTask(id){
   confirmDelete({
@@ -750,6 +725,32 @@ function planMaterialOptions(){
   return html;
 }
 
+// 刷新全部方案行下拉：已选用的材料在其他行置灰标注（已添加），改选/删行后恢复可选；不在可选列表的已选材料（已停用/成品）保留本行回显
+function refreshPlanMaterialOptions(){
+  document.querySelectorAll('#planItemsBody .p-material').forEach(function(sel){
+    var cur = sel.value;
+    var curOpt = cur ? sel.querySelector('option[value="'+cur+'"]') : null;
+    var curText = curOpt ? curOpt.text : '';
+    var curUnit = curOpt ? (curOpt.getAttribute('data-unit') || '') : '';
+    var used = {};
+    document.querySelectorAll('#planItemsBody .p-material').forEach(function(s){
+      if (s !== sel && s.value) used[s.value] = true;
+    });
+    var html = '<option value="">请选择商品</option>';
+    MATERIALS.forEach(function(m){
+      var isUsed = used[m.id] && String(m.id) !== String(cur);
+      var stock = parseFloat(m.stock) || 0;
+      html += '<option value="'+m.id+'" data-unit="'+esc(m.unit||'')+'" data-stock="'+stock+'"'+(isUsed?' data-used="1" disabled':'')+'>'
+            + esc(m.code)+' / '+esc(m.name)+(m.spec ? ' ('+esc(m.spec)+')' : '')+(isUsed?'（已添加）':'')+'</option>';
+    });
+    if (cur && curOpt && !MATERIALS.some(function(m){ return String(m.id) === String(cur); })){
+      html += '<option value="'+esc(cur)+'" data-unit="'+esc(curUnit)+'" data-disabled="1">'+esc(curText)+'</option>';
+    }
+    sel.innerHTML = html;
+    if (cur) sel.value = cur;
+  });
+}
+
 // 添加一行；selectedId 指定已选材料，extraOpt 为已停用材料的补充选项
 function addPlanRow(selectedId, qty, remark, extraOpt){
   var body = document.getElementById('planItemsBody');
@@ -766,7 +767,7 @@ function addPlanRow(selectedId, qty, remark, extraOpt){
   var sel = tr.querySelector('.p-material');
   if (selectedId) sel.value = selectedId;
   sel.addEventListener('change', function(){
-    // 消耗商品不能重复选择：与其他行重复则清空本行
+    // 兜底校验：与其他行重复则清空本行（下拉已隐藏其他行已选材料，正常操作不会触发）
     var v = sel.value;
     if (v){
       var dup = false;
@@ -778,12 +779,15 @@ function addPlanRow(selectedId, qty, remark, extraOpt){
         return;
       }
     }
+    refreshPlanMaterialOptions();
     refreshPlanRow(tr);
   });
   tr.querySelector('.p-del').addEventListener('click', function(){
     tr.remove();
     markPlanDuplicates();
+    refreshPlanMaterialOptions(); // 删除行后其材料恢复到其他行下拉
   });
+  refreshPlanMaterialOptions();
   refreshPlanRow(tr);
 }
 
@@ -838,9 +842,9 @@ function refillPlanRows(){
     if (known){
       addPlanRow(b.material_id, b.quantity, b.remark);
     } else {
-      // 材料已停用：补一个选项用于回显（保存时后端会要求先启用或移除）
+      // 材料不在可选列表（已停用或成品分类）：补一个选项用于回显（保存时后端会提示原因）
       var extra = '<option value="'+b.material_id+'" data-unit="'+esc(b.material_unit||'')+'" data-disabled="1">'
-                + esc(b.material_code)+' / '+esc(b.material_name)+'（已停用）</option>';
+                + esc(b.material_code)+' / '+esc(b.material_name)+'（已停用/成品，不可选用）</option>';
       addPlanRow(b.material_id, b.quantity, b.remark, extra);
     }
   });
@@ -880,31 +884,6 @@ function viewPlan(productId, productName){
   document.getElementById('planDetailBody').innerHTML = html || '<tr class="empty-row"><td colspan="6">暂无消耗商品</td></tr>';
   document.getElementById('planDetailName').textContent = productName || '';
   Modal.open('planDetailModal');
-}
-function editPlan(id){
-  var row = PLANS.filter(function(b){ return String(b.id) === String(id); })[0];
-  if (!row){ toast('方案不存在','error'); return; }
-  resetPlanForm();
-  var f = document.getElementById('planForm');
-  f.action = '<?= url('production/planUpdate') ?>&id='+id;
-  f.querySelector('[name=id]').value = id;
-  ensureOption('planProduct', row.product_id, row.product_code + ' / ' + row.product_name);
-  var psel = document.getElementById('planProduct');
-  psel.value = row.product_id;
-  psel.disabled = true;
-  refillPlanRows();
-  document.getElementById('planModalTitle').textContent = '编辑生产方案（' + row.product_name + ' 的全部材料）';
-  Modal.open('planModal');
-}
-// 停用商品不在下拉中时补一个选项，保证历史方案可回显
-function ensureOption(selectId, value, label){
-  var sel = document.getElementById(selectId);
-  var hit = Array.prototype.some.call(sel.options, function(o){ return o.value === String(value); });
-  if (!hit){
-    var opt = document.createElement('option');
-    opt.value = value; opt.textContent = label + '（已停用）';
-    sel.appendChild(opt);
-  }
 }
 function delPlan(id){
   confirmDelete({
@@ -957,9 +936,6 @@ document.getElementById('planForm').addEventListener('submit', function(e){
 
   var btn = this.querySelector('[type=submit]'); var old = btn.innerHTML;
   btn.disabled = true; btn.innerHTML = '保存中...';
-  // 编辑时成品下拉被禁用（禁用控件不参与提交），序列化前临时启用
-  var psel0 = document.getElementById('planProduct');
-  psel0.disabled = false;
   var fd = new FormData(this);
   Api.post(this.action, fd).then(function(res){
     btn.disabled = false; btn.innerHTML = old;
@@ -982,7 +958,6 @@ function currentQuery(){
 }
 bindBatch({
   <?php if ($canPrint): ?>printUrl: function(){ return '<?= url('production/print') ?>' + currentQuery(); },<?php endif; ?>
-  deleteUrl: '<?= $canDelete ? url('production/destroy') : '' ?>'<?php if ($canEdit): ?>,
-  editFn: function(id){ editTask(id); }<?php endif; ?>
+  deleteUrl: '<?= $canDelete ? url('production/destroy') : '' ?>'
 });
 </script>

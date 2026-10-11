@@ -49,14 +49,14 @@ final class Permission
         'warehouse' => ['view', 'create', 'edit', 'delete', 'print'],
         'product'   => ['view', 'create', 'edit', 'delete', 'print'],
         'basic'     => ['view', 'create', 'edit', 'delete'],
-        // 入库：operate=待入库单点「已完成」入库；return=已入库单发起「退回」
-        'inbound'   => ['view', 'create', 'edit', 'operate', 'return', 'delete', 'print'],
-        // 出库：operate=待出库单点「已完成」出库；reverse=已出库单发起「反回」
-        'outbound'  => ['view', 'create', 'edit', 'operate', 'reverse', 'delete', 'print'],
-        // 生产：start=开始生产/完成生产；cancel=登记取消（待取消）；return=确认取消（执行材料返回/成品退回）
-        'production'=> ['view', 'create', 'edit', 'start', 'cancel', 'return', 'delete', 'print'],
+        // 入库：operate=待入库单点「已完成」入库；return=已入库单发起「退回」；单据不支持编辑，需调整请删除后重新录入
+        'inbound'   => ['view', 'create', 'operate', 'return', 'delete', 'print'],
+        // 出库：operate=待出库单点「已完成」出库；reverse=已出库单发起「反回」；单据不支持编辑，需调整请删除后重新录入
+        'outbound'  => ['view', 'create', 'operate', 'reverse', 'delete', 'print'],
+        // 生产：start=开始生产/完成生产；cancel=登记取消（待取消）；return=确认取消（执行材料返回/成品退回）；方案与任务不支持编辑，需调整请删除后重新下达
+        'production'=> ['view', 'create', 'start', 'cancel', 'return', 'delete', 'print'],
         'line'      => ['view', 'create', 'edit', 'delete', 'print'],
-        'return'    => ['view', 'edit', 'delete', 'print'], // 退回单由入库/出库/生产取消发起，不支持手工新增；编辑=待办单点「已完成」
+        'return'    => ['view', 'operate', 'delete', 'print'], // 退回单由入库/出库/生产取消发起，不支持手工新增与编辑；operate=待办单点「已完成」
         'inventory' => ['view', 'print', 'delete'],
         'supplier'  => ['view', 'create', 'edit', 'delete', 'print'],
         'customer'  => ['view', 'create', 'edit', 'delete', 'print'],

@@ -41,7 +41,6 @@ $cu = Auth::instance();
         <button class="btn-link" onclick="editUser(<?= (int)$r['id'] ?>)">编辑</button>
         <?php if ((int)$r['is_admin'] !== 1): ?>
           <button class="btn-link" style="color:#8e44ad" onclick="openPerms(<?= (int)$r['id'] ?>)">权限</button>
-          <button class="btn-link" style="color:#7f8c8d" onclick='openPermLogs(<?= (int)$r['id'] ?>, <?= json_encode($r['name'] !== '' ? $r['name'] : $r['username'], JSON_UNESCAPED_UNICODE) ?>)'>日志</button>
           <button class="btn-link danger" onclick="delUser(<?= (int)$r['id'] ?>)">删除</button>
         <?php else: ?>
           <span style="color:#ccc;font-size:12px">管理员</span>
@@ -111,22 +110,6 @@ $totalPages = $page['totalPages']; $cur = $page['page']; $per = $page['perPage']
         <button type="submit" class="btn btn-primary">保存权限</button>
       </div>
     </form>
-  </div>
-</div>
-
-<!-- 权限分配日志弹窗 -->
-<div class="modal-mask" id="permLogModal">
-  <div class="modal modal-lg">
-    <div class="modal-head"><h3>权限分配日志 - <span id="permLogUserName"></span></h3><button class="close" type="button">&times;</button></div>
-    <div class="modal-body">
-      <div class="table-wrap">
-        <table class="data-table">
-          <thead><tr><th style="width:150px">时间</th><th style="width:110px">操作人</th><th>变更内容</th></tr></thead>
-          <tbody id="permLogBody"></tbody>
-        </table>
-      </div>
-    </div>
-    <div class="modal-foot"><button type="button" class="btn" onclick="Modal.close('permLogModal')">关闭</button></div>
   </div>
 </div>
 
@@ -228,25 +211,6 @@ document.getElementById('permForm').addEventListener('submit', function(e){
   });
 });
 
-// 权限分配日志
-function openPermLogs(id, name){
-  Api.get('<?= url('user/permLogs') ?>&id='+id).then(function(res){
-    if (!res || res.success === false){ toast((res && res.message) || '加载失败','error'); return; }
-    var esc = function(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); };
-    var html = '';
-    if (!res.logs || !res.logs.length){
-      html = '<tr class="empty-row"><td colspan="3">暂无权限变更记录</td></tr>';
-    } else {
-      res.logs.forEach(function(lg){
-        html += '<tr><td>'+esc(String(lg.created_at).substring(0,19))+'</td><td>'+esc(lg.operator_name)+'</td><td style="white-space:pre-line;text-align:left">'+esc(lg.changes)+'</td></tr>';
-      });
-    }
-    document.getElementById('permLogBody').innerHTML = html;
-    document.getElementById('permLogUserName').textContent = name || '';
-    Modal.open('permLogModal');
-  });
-}
-
 // 成员详情弹窗
 function viewUserDetail(id){
   Api.get('<?= url('user/detail') ?>&id=' + id).then(function(r){
@@ -293,6 +257,7 @@ function editUser(id){
     form.querySelector('[name=phone]').value = res.phone||'';
     form.querySelector('[name=is_admin]').value = res.is_admin;
     form.querySelector('[name=status]').value = res.status;
+    form.querySelector('[name=id]').value = res.id; // 回填隐藏id，否则POST里的空id会覆盖URL上的&id导致后端找不到记录
     form.action = '<?= url('user/update') ?>&id='+id;
     document.getElementById('userModalTitle').textContent = '编辑成员';
     document.getElementById('pwdReq').style.display = 'none';

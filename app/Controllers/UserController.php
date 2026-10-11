@@ -169,13 +169,13 @@ final class UserController extends BaseController
         ]);
     }
 
-    /** 保存权限（AJAX）：记录权限分配日志（前后权限 + 操作人 + 变更摘要） */
+    /** 保存权限（AJAX） */
     public function savePermissions(): void
     {
         $this->requireAdmin();
         Csrf::verify();
         $id = (int)input('id', 0);
-        $row = $this->db->fetch("SELECT id,is_admin,name,username,permissions FROM users WHERE id=:id", ['id' => $id]);
+        $row = $this->db->fetch("SELECT id,is_admin FROM users WHERE id=:id", ['id' => $id]);
         if (!$row) $this->fail('记录不存在');
         if ((int)$row['is_admin'] === 1) $this->fail('管理员拥有全部权限，无需设置');
 
@@ -192,59 +192,11 @@ final class UserController extends BaseController
         }
 
         try {
-            $oldPerms = [];
-            if ($row['permissions']) {
-                $decoded = json_decode($row['permissions'], true);
-                if (is_array($decoded)) $oldPerms = $decoded;
-            }
             $this->db->update('users', ['permissions' => json_encode($perms, JSON_UNESCAPED_UNICODE)], 'id = :id', ['id' => $id]);
-            // 权限分配日志
-            $auth = Auth::instance();
-            $this->db->insert('permission_logs', [
-                'user_id'       => $id,
-                'user_name'     => ($row['name'] !== '' ? $row['name'] : $row['username']),
-                'operator_id'   => $auth->id(),
-                'operator_name' => $auth->name(),
-                'changes'       => $this->permDiffText($oldPerms, $perms),
-                'old_perms'     => json_encode($oldPerms, JSON_UNESCAPED_UNICODE),
-                'new_perms'     => json_encode($perms, JSON_UNESCAPED_UNICODE),
-            ]);
             $this->ok('权限设置成功');
         } catch (\Throwable $e) {
             $this->fail('操作失败，请重试');
         }
-    }
-
-    /** 权限分配日志（AJAX，仅管理员） */
-    public function permLogs(): void
-    {
-        $this->requireAdmin();
-        $id = (int)input('id', 0);
-        if (!$this->db->fetch("SELECT id FROM users WHERE id=:id", ['id' => $id])) $this->fail('记录不存在');
-        $logs = $this->db->fetchAll(
-            "SELECT operator_name, `changes`, created_at FROM permission_logs WHERE user_id = :id ORDER BY id DESC LIMIT 50",
-            ['id' => $id]
-        );
-        $this->json(['success' => true, 'logs' => $logs]);
-    }
-
-    /** 生成权限变更摘要文本（按模块列出新增/移除的操作） */
-    private function permDiffText(array $old, array $new): string
-    {
-        $lines = [];
-        foreach (Permission::MODULES as $m => $mlabel) {
-            $o = $old[$m] ?? [];
-            $n = $new[$m] ?? [];
-            $add = array_diff($n, $o);
-            $del = array_diff($o, $n);
-            if (!$add && !$del) continue;
-            $name = fn(string $a): string => Permission::ACTIONS[$a] ?? $a;
-            $parts = [];
-            if ($add) $parts[] = '新增[' . implode('、', array_map($name, $add)) . ']';
-            if ($del) $parts[] = '移除[' . implode('、', array_map($name, $del)) . ']';
-            $lines[] = $mlabel . '：' . implode('，', $parts);
-        }
-        return $lines ? implode("\n", $lines) : '无变化';
     }
 
     // ---- 内部 ----

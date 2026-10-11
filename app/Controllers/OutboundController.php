@@ -85,7 +85,6 @@ final class OutboundController extends BaseController
                                                   FROM products WHERE status=1 ORDER BY name"),
             'categories'  => $this->db->fetchAll("SELECT id, name FROM product_categories ORDER BY sort ASC, id ASC"),
             'canCreate' => Auth::instance()->isAdmin() ? true : \Core\Permission::check($this->module, 'create'),
-            'canEdit'   => Auth::instance()->isAdmin() ? true : \Core\Permission::check($this->module, 'edit'),
             'canOperate' => Auth::instance()->isAdmin() ? true : \Core\Permission::check($this->module, 'operate'),
             'canReverse' => Auth::instance()->isAdmin() ? true : \Core\Permission::check($this->module, 'reverse'),
             'canDelete' => Auth::instance()->isAdmin() ? true : \Core\Permission::check($this->module, 'delete'),
@@ -93,32 +92,11 @@ final class OutboundController extends BaseController
         ]);
     }
 
-    /** 取单据明细（AJAX，编辑时使用） */
-    public function edit(): void
-    {
-        $id = (int)input('id', 0);
-        $order = $this->db->fetch(
-            "SELECT * FROM outbound_orders WHERE id=:id",
-            ['id' => $id]
-        );
-        if (!$order) {
-            $this->fail('记录不存在');
-        }
-        $items = $this->db->fetchAll(
-            "SELECT i.*, p.code AS product_code, p.name AS product_name, p.spec AS product_spec, p.unit AS product_unit
-             FROM outbound_items i
-             LEFT JOIN products p ON i.product_id = p.id
-             WHERE i.order_id=:id",
-            ['id' => $id]
-        );
-        $this->json(['order' => $order, 'items' => $items]);
-    }
-
     /** 新增（AJAX） */
     public function store(): void
     {
         $data = $this->collectOrderInput();
-        $errors = $this->validateOrder($data, false);
+        $errors = $this->validateOrder($data);
         if ($errors) {
             $this->fail(implode('；', $errors));
         }
@@ -159,72 +137,6 @@ final class OutboundController extends BaseController
                 }
             });
             $this->ok('添加成功');
-        } catch (\Throwable $e) {
-            $this->fail('操作失败，请重试');
-        }
-    }
-
-    /** 更新（AJAX） */
-    public function update(): void
-    {
-        $id = (int)input('id', 0);
-        $exists = $this->db->fetch("SELECT id, status, warehouse_id, production_id FROM outbound_orders WHERE id=:id", ['id' => $id]);
-        if (!$exists) {
-            $this->fail('记录不存在');
-        }
-        // 生产领料出库单由生产模块统一维护（编辑会重新生成），出库模块只可查看
-        if ((int)$exists['production_id'] > 0) {
-            $this->fail('该单为生产领料出库单，请在生产管理中编辑对应生产任务');
-        }
-
-        $data = $this->collectOrderInput();
-        $errors = $this->validateOrder($data, true, $id);
-        if ($errors) {
-            $this->fail(implode('；', $errors));
-        }
-        // 已出库（status=1）时库存预检：先把旧库存退回再检查新需求
-        if ((int)$data['status'] === 1) {
-            $stockErr = $this->checkStockForUpdate($data['warehouse_id'], $data['items'], $id);
-            if ($stockErr) {
-                $this->fail('库存不足：' . implode('，', $stockErr));
-            }
-        }
-
-        try {
-            $this->db->transaction(function ($db) use ($id, $exists, $data) {
-                // 如果原单据已出库，先回滚（加回）旧库存
-                if ((int)$exists['status'] === 1) {
-                    $oldItems = $db->fetchAll("SELECT product_id, quantity FROM outbound_items WHERE order_id=:id", ['id' => $id]);
-                    foreach ($oldItems as $oi) {
-                        $this->adjustInventory($db, (int)$exists['warehouse_id'], (int)$oi['product_id'], (float)$oi['quantity']);
-                    }
-                }
-                $db->delete('outbound_items', 'order_id = :id', ['id' => $id]);
-                $db->update('outbound_orders', [
-                    'warehouse_id' => $data['warehouse_id'],
-                    'customer_id'  => $data['customer_id'],
-                    'operator'     => $data['operator'],
-                    'total_amount' => $data['total_amount'],
-                    'outbound_date' => $data['outbound_date'],
-                    'status'       => $data['status'],
-                    'remark'       => $data['remark'],
-                ], 'id = :id', ['id' => $id]);
-
-                foreach ($data['items'] as $row) {
-                    $db->insert('outbound_items', [
-                        'order_id'   => $id,
-                        'product_id' => $row['product_id'],
-                        'quantity'   => $row['quantity'],
-                        'unit_price' => $row['unit_price'],
-                        'amount'      => $row['amount'],
-                        'remark'      => $row['remark'],
-                    ]);
-                    if ((int)$data['status'] === 1) {
-                        $this->adjustInventory($db, $data['warehouse_id'], $row['product_id'], -(float)$row['quantity']);
-                    }
-                }
-            });
-            $this->ok('编辑成功');
         } catch (\Throwable $e) {
             $this->fail('操作失败，请重试');
         }
@@ -497,10 +409,15 @@ final class OutboundController extends BaseController
             }
         }
 
+        // 反回数量汇总（含生产取消的材料反回）：已反回加回库存，实际出库为净数；待反回仅提示
+        [$returnDone, $returnPending, $returnByItem] = $this->reverseTotals(array_column($orders, 'id'));
         echo $this->render('outbound/print', [
             'title'         => '出库单',
             'orders'        => $orders,
             'itemsByOrder'  => $itemsByOrder,
+            'returnDone'    => $returnDone,
+            'returnPending' => $returnPending,
+            'returnByItem'  => $returnByItem,
             'siteName'      => $this->siteName(),
             'printer'       => Auth::instance()->name(), // 经办人显示当前打印操作人
         ]);
@@ -529,10 +446,15 @@ final class OutboundController extends BaseController
              WHERE i.order_id=:id",
             ['id' => $id]
         );
+        // 反回数量汇总（含生产取消的材料反回）
+        [$returnDone, $returnPending, $returnByItem] = $this->reverseTotals([$id]);
         echo $this->render('outbound/print', [
             'title'         => '出库单详情',
             'orders'        => [$order],
             'itemsByOrder'  => [$id => $items],
+            'returnDone'    => $returnDone,
+            'returnPending' => $returnPending,
+            'returnByItem'  => $returnByItem,
             'siteName'      => $this->siteName(),
             'printer'       => Auth::instance()->name(), // 经办人显示当前打印操作人
         ]);
@@ -568,6 +490,34 @@ final class OutboundController extends BaseController
         }
     }
 
+    /** 汇总出库单的反回数量（含生产取消的材料反回）：[已反回合计, 待反回合计, [来源单id][商品id]=>已反回量] */
+    private function reverseTotals(array $orderIds): array
+    {
+        $done = 0.0;
+        $pending = 0.0;
+        $itemDone = [];
+        if ($orderIds) {
+            $in = implode(',', array_fill(0, count($orderIds), '?'));
+            $stmt = $this->db->pdo()->prepare(
+                "SELECT ro.source_id AS oid, ri.product_id AS pid, ro.status, SUM(ri.quantity) AS qty
+                 FROM return_orders ro JOIN return_items ri ON ri.order_id = ro.id
+                 WHERE ro.source_id IN ($in) AND ro.return_type = 1
+                 GROUP BY ro.source_id, ri.product_id, ro.status"
+            );
+            $stmt->execute($orderIds);
+            foreach ($stmt->fetchAll() as $row) {
+                $qty = (float)$row['qty'];
+                if ((int)$row['status'] === 1) {
+                    $done += $qty;
+                    $itemDone[(int)$row['oid']][(int)$row['pid']] = $qty;
+                } else {
+                    $pending += $qty;
+                }
+            }
+        }
+        return [$done, $pending, $itemDone];
+    }
+
     /** 新增出库的库存预检 */
     private function checkStock(int $warehouseId, array $items): array
     {
@@ -580,44 +530,6 @@ final class OutboundController extends BaseController
             if ($stock < $row['quantity']) {
                 $p = $this->db->fetch("SELECT name FROM products WHERE id=:id", ['id' => $row['product_id']]);
                 $errs[] = ($p['name'] ?? '商品' . $row['product_id']) . '（需要 ' . $row['quantity'] . '，库存 ' . $stock . '）';
-            }
-        }
-        return $errs;
-    }
-
-    /** 编辑出库的库存预检（先把旧出库量加回再检查） */
-    private function checkStockForUpdate(int $warehouseId, array $newItems, int $orderId): array
-    {
-        // 获取旧明细（按 product_id 聚合）
-        $oldRows = $this->db->fetchAll(
-            "SELECT product_id, SUM(quantity) AS qty FROM outbound_items WHERE order_id=:id GROUP BY product_id",
-            ['id' => $orderId]
-        );
-        $oldMap = [];
-        foreach ($oldRows as $row) {
-            $oldMap[(int)$row['product_id']] = (float)$row['qty'];
-        }
-        // 新明细按 product_id 聚合
-        $newMap = [];
-        foreach ($newItems as $row) {
-            $pid = (int)$row['product_id'];
-            $newMap[$pid] = ($newMap[$pid] ?? 0) + (float)$row['quantity'];
-        }
-
-        $errs = [];
-        $allPids = array_unique(array_merge(array_keys($oldMap), array_keys($newMap)));
-        foreach ($allPids as $pid) {
-            $need = ($newMap[$pid] ?? 0) - ($oldMap[$pid] ?? 0);
-            if ($need <= 0) {
-                continue; // 新需求不大于旧需求，肯定够
-            }
-            $stock = (float)$this->db->fetchColumn(
-                "SELECT quantity FROM inventory WHERE warehouse_id=:w AND product_id=:p",
-                ['w' => $warehouseId, 'p' => $pid]
-            );
-            if ($stock < $need) {
-                $p = $this->db->fetch("SELECT name FROM products WHERE id=:id", ['id' => $pid]);
-                $errs[] = ($p['name'] ?? '商品' . $pid) . '（需新增 ' . $need . '，库存 ' . $stock . '）';
             }
         }
         return $errs;
@@ -662,7 +574,7 @@ final class OutboundController extends BaseController
     }
 
     /** 校验主表 + 明细 */
-    private function validateOrder(array $data, bool $isUpdate, int $id = 0): array
+    private function validateOrder(array $data): array
     {
         $errors = [];
         if ($data['warehouse_id'] <= 0) {

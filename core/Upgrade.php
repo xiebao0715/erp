@@ -486,26 +486,7 @@ final class Upgrade
             );
         }
 
-        // ---- v20：权限分配日志表（记录成员权限每次变更的前后内容与操作人）----
-        if (!self::hasTable($db, 'permission_logs')) {
-            $db->query(
-                "CREATE TABLE `permission_logs` (
-                  `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
-                  `user_id` INT UNSIGNED NOT NULL COMMENT '被调整成员ID',
-                  `user_name` VARCHAR(60) NOT NULL DEFAULT '' COMMENT '被调整成员姓名快照',
-                  `operator_id` INT UNSIGNED NOT NULL DEFAULT 0 COMMENT '操作人ID',
-                  `operator_name` VARCHAR(60) NOT NULL DEFAULT '' COMMENT '操作人姓名',
-                  `changes` TEXT NULL COMMENT '变更摘要（按模块列出新增/移除的操作）',
-                  `old_perms` TEXT NULL COMMENT '变更前权限JSON',
-                  `new_perms` TEXT NULL COMMENT '变更后权限JSON',
-                  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                  PRIMARY KEY (`id`),
-                  KEY `idx_user` (`user_id`)
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='权限分配日志'"
-            );
-        }
-
-        // ---- v21：生产方案记录下发人（保存方案时写入当前操作人）----
+        // ---- v20：生产方案记录下发人（保存方案时写入当前操作人）----
         if (!self::hasColumn($db, 'production_boms', 'operator')) {
             $db->query("ALTER TABLE `production_boms` ADD COLUMN `operator` VARCHAR(60) NOT NULL DEFAULT '' COMMENT '下发人' AFTER `remark`");
         }

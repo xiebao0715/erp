@@ -2,6 +2,27 @@
 use Core\Auth;
 $cu = Auth::instance();
 $currency = '¥';
+
+// 单据商品摘要：每行「名称（规格）× 数量」，超过 3 种显示省略行，悬停 title 提示完整列表
+$summarize = function (array $items): string {
+    if (!$items) { return '<span style="color:#c0c4cc">-</span>'; }
+    $max = 3;
+    $lines = [];
+    $title = [];
+    foreach ($items as $i => $it) {
+        $spec = trim((string)($it['spec'] ?? ''));
+        $qty  = number_format((float)$it['quantity'], 2);
+        $name = (string)$it['name'];
+        if ($i < $max) {
+            $lines[] = e($name) . ($spec !== '' ? '（' . e($spec) . '）' : '') . ' × ' . $qty;
+        }
+        $title[] = $name . ($spec !== '' ? '（' . $spec . '）' : '') . ' × ' . $qty;
+    }
+    if (count($items) > $max) {
+        $lines[] = '<span style="color:#999">…共' . count($items) . '种商品</span>';
+    }
+    return '<div title="' . e(implode("\n", $title)) . '" style="font-size:12px;line-height:1.8;color:#555;text-align:left;white-space:nowrap">' . implode('<br>', $lines) . '</div>';
+};
 ?>
 <div class="page-head">
   <h2>仪表盘</h2>
@@ -69,10 +90,10 @@ $currency = '¥';
     <?php else: ?>
     <div class="table-wrap">
     <table class="data-table">
-      <thead><tr><th>单号</th><th>日期</th><th>金额</th><th>状态</th></tr></thead>
+      <thead><tr><th>单号</th><th>商品</th><th>日期</th><th>金额</th><th>状态</th></tr></thead>
       <tbody>
         <?php foreach ($recentInbound as $r): ?>
-        <tr><td><?= e($r['order_no']) ?></td><td><?= e($r['inbound_date']) ?></td><td><?= $currency ?><?= number_format($r['total_amount'],2) ?></td><td><?= $r['status']==1?'<span class="badge badge-on">已入库</span>':'<span class="badge badge-off">待入库</span>' ?></td></tr>
+        <tr><td><?= e($r['order_no']) ?></td><td><?= $summarize($recentItems['inbound'][$r['id']] ?? []) ?></td><td><?= e($r['inbound_date']) ?></td><td><?= $currency ?><?= number_format($r['total_amount'],2) ?></td><td><?= $r['status']==1?'<span class="badge badge-on">已入库</span>':'<span class="badge badge-off">待入库</span>' ?></td></tr>
         <?php endforeach; ?>
       </tbody>
     </table>
@@ -88,10 +109,10 @@ $currency = '¥';
     <?php else: ?>
     <div class="table-wrap">
     <table class="data-table">
-      <thead><tr><th>单号</th><th>日期</th><th>金额</th><th>状态</th></tr></thead>
+      <thead><tr><th>单号</th><th>商品</th><th>日期</th><th>金额</th><th>状态</th></tr></thead>
       <tbody>
         <?php foreach ($recentOutbound as $r): ?>
-        <tr><td><?= e($r['order_no']) ?></td><td><?= e($r['outbound_date']) ?></td><td><?= $currency ?><?= number_format($r['total_amount'],2) ?></td><td><?= $r['status']==1?'<span class="badge badge-on">已出库</span>':'<span class="badge badge-off">待出库</span>' ?></td></tr>
+        <tr><td><?= e($r['order_no']) ?></td><td><?= $summarize($recentItems['outbound'][$r['id']] ?? []) ?></td><td><?= e($r['outbound_date']) ?></td><td><?= $currency ?><?= number_format($r['total_amount'],2) ?></td><td><?= $r['status']==1?'<span class="badge badge-on">已出库</span>':'<span class="badge badge-off">待出库</span>' ?></td></tr>
         <?php endforeach; ?>
       </tbody>
     </table>
@@ -107,11 +128,12 @@ $currency = '¥';
     <?php else: ?>
     <div class="table-wrap">
     <table class="data-table">
-      <thead><tr><th>单号</th><th>类型</th><th>日期</th><th>金额</th><th>状态</th></tr></thead>
+      <thead><tr><th>单号</th><th>商品</th><th>类型</th><th>日期</th><th>金额</th><th>状态</th></tr></thead>
       <tbody>
         <?php foreach ($recentReturn as $r): $rt = (int)$r['return_type']; ?>
         <tr>
           <td><?= e($r['order_no']) ?></td>
+          <td><?= $summarize($recentItems['return'][$r['id']] ?? []) ?></td>
           <td><?= $rt === 2 ? '<span class="badge badge-warn">入库退回</span>' : '<span class="badge">出库反回</span>' ?></td>
           <td><?= e($r['return_date']) ?></td>
           <td><?= $currency ?><?= number_format($r['total_amount'],2) ?></td>

@@ -74,6 +74,28 @@ final class DashboardController extends BaseController
         $recentReturn = ($isAdmin || Permission::check('return', 'view'))
             ? $this->db->fetchAll("SELECT * FROM return_orders ORDER BY id DESC LIMIT 5") : [];
 
+        // 最近单据的商品明细（名称/规格/数量），按单据分组供仪表盘摘要展示
+        $recentItems = ['inbound' => [], 'outbound' => [], 'return' => []];
+        $itemSources = [
+            ['inbound',  'inbound_items',  $recentInbound],
+            ['outbound', 'outbound_items', $recentOutbound],
+            ['return',   'return_items',   $recentReturn],
+        ];
+        foreach ($itemSources as [$key, $table, $orders]) {
+            $ids = array_column($orders, 'id');
+            if (!$ids) { continue; }
+            $in = implode(',', array_fill(0, count($ids), '?'));
+            $stmt = $this->db->pdo()->prepare(
+                "SELECT i.order_id, i.quantity, p.name, p.spec
+                 FROM {$table} i JOIN products p ON p.id = i.product_id
+                 WHERE i.order_id IN ($in)"
+            );
+            $stmt->execute($ids);
+            foreach ($stmt->fetchAll() as $row) {
+                $recentItems[$key][(int)$row['order_id']][] = $row;
+            }
+        }
+
         $this->view('dashboard/index', [
             'title'         => '仪表盘',
             'stats'         => $stats,
@@ -81,6 +103,7 @@ final class DashboardController extends BaseController
             'recentInbound' => $recentInbound,
             'recentOutbound'=> $recentOutbound,
             'recentReturn'  => $recentReturn,
+            'recentItems'   => $recentItems,
             'isAdmin'       => $isAdmin,
         ]);
     }

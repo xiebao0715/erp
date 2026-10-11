@@ -46,7 +46,6 @@ abstract class BaseController
         'stock'           => 'view',
         // 生产管理：生产方案（BOM）维护与查询
         'planStore'       => 'create',
-        'planUpdate'      => 'edit',
         'planDestroy'     => 'delete',
         'planItems'       => 'view',
         // 单据状态推进：入库/出库待办单「已完成」=完成操作权限；生产「开始生产/完成生产」由生产控制器覆盖为 start
